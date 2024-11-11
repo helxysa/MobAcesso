@@ -10,7 +10,7 @@ export function Home() {
   return (
     <StyledView className="flex-1 bg-white p-4">
       <StyledText className="text-2xl font-bold text-blue-500 mb-4">
-        MobiAcess
+        MobAcesso
       </StyledText>
       <StyledText className="text-gray-600 mb-2">
         Para onde você quer ir?
