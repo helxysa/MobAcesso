@@ -1,6 +1,11 @@
 import React from 'react';
-import { AppNavigator } from './navigation/AppNavigation';
+import { AppNavigation } from './navigation/AppNavigation';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function App() {
-  return <AppNavigator />;
+  return (
+    <SafeAreaProvider>
+      <AppNavigation />
+    </SafeAreaProvider>
+  );
 }

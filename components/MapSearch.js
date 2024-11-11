@@ -33,10 +33,18 @@ export function MapSearch({ onRouteSelect }) {
   const [locationPermission, setLocationPermission] = useState(null);
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
   const [initialLocation, setInitialLocation] = useState(null);
+  const [routeOptions, setRouteOptions] = useState([]);
+  const [showRouteOptions, setShowRouteOptions] = useState(false);
 
   useEffect(() => {
     initializeLocation();
   }, []);
+
+  useEffect(() => {
+    if (selectedOrigin && selectedDestination) {
+      fetchRouteOptions();
+    }
+  }, [selectedOrigin, selectedDestination]);
 
   const initializeLocation = async () => {
     try {
@@ -135,50 +143,60 @@ export function MapSearch({ onRouteSelect }) {
 
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  const handleSearch = async (text, isOrigin = true) => {
+  const handleSearch = async (text, isOrigin) => {
     try {
       if (isOrigin) {
         setOrigin(text);
-        setSelectedOrigin(null);
-        if (text.length > 3) {
-          setIsLoadingSearch(true);
-          const results = await searchLocation(text, userLocation);
-          setOriginResults(results);
-        } else {
-          setOriginResults([]);
-        }
+        setIsSearchingOrigin(true);
       } else {
-        if (!selectedOrigin) {
-          Alert.alert('Atenção', 'Por favor, selecione primeiro o local de origem');
-          return;
-        }
         setDestination(text);
-        setSelectedDestination(null);
-        if (text.length > 3) {
-          setIsLoadingSearch(true);
-          const results = await searchLocation(text, userLocation);
-          setDestinationResults(results);
+        setIsSearchingOrigin(false);
+      }
+
+      if (text.length < 3) {
+        if (isOrigin) {
+          setOriginResults([]);
         } else {
           setDestinationResults([]);
         }
+        return;
+      }
+
+      setIsLoadingSearch(true);
+
+      const results = await searchLocation(text, userLocation);
+      
+      // Filtra resultados para Macapá
+      const filteredResults = results.filter(item => 
+        item.name.toLowerCase().includes('macapá')
+      );
+
+      if (isOrigin) {
+        setOriginResults(filteredResults);
+      } else {
+        setDestinationResults(filteredResults);
       }
     } catch (error) {
       console.error('Erro na busca:', error);
+      Alert.alert('Erro', 'Não foi possível realizar a busca.');
     } finally {
       setIsLoadingSearch(false);
     }
   };
 
-  const handleSelectLocation = (item, isOrigin = true) => {
+  const handleSelectLocation = (item, isOrigin) => {
     if (isOrigin) {
       setOrigin(item.name);
-      setOriginResults([]);
       setSelectedOrigin(item);
-      setIsSearchingOrigin(false);
+      setOriginResults([]);
+      setIsSearchingOrigin(false); // Muda o foco para o destino
     } else {
       setDestination(item.name);
-      setDestinationResults([]);
       setSelectedDestination(item);
+      setDestinationResults([]);
+      if (selectedOrigin) {
+        fetchRouteOptions(); // Busca rotas quando origem e destino estão selecionados
+      }
     }
   };
 
@@ -246,140 +264,180 @@ export function MapSearch({ onRouteSelect }) {
     setSelectedOrigin(null);
   };
 
+  const fetchRouteOptions = async () => {
+    setIsLoadingSearch(true);
+    try {
+      const options = [
+        {
+          id: 1,
+          name: "Ônibus 123 - Adaptado",
+          duration: "40 min",
+          accessibility: ["elevator", "ramp"],
+          route: {
+            origin: selectedOrigin,
+            destination: selectedDestination,
+            type: "bus",
+            line: "123"
+          }
+        },
+        {
+          id: 2,
+          name: "Ônibus 456 - Adaptado",
+          duration: "45 min",
+          accessibility: ["ramp"],
+          route: {
+            origin: selectedOrigin,
+            destination: selectedDestination,
+            type: "bus",
+            line: "456"
+          }
+        }
+      ];
+      
+      setRouteOptions(options);
+      setShowRouteOptions(true);
+    } catch (error) {
+      console.error('Erro ao buscar opções de rota:', error);
+    } finally {
+      setIsLoadingSearch(false);
+    }
+  };
+
+  const handleRouteOptionSelect = (option) => {
+    onRouteSelect(option.route);
+  };
+
+  const renderRouteOptions = () => (
+    <StyledView className="flex-1 bg-white">
+      <StyledText className="px-4 py-3 text-lg font-semibold text-gray-800">
+        Rotas disponíveis
+      </StyledText>
+      
+      <StyledFlatList
+        data={routeOptions}
+        renderItem={({ item }) => (
+          <StyledTouchable 
+            className="p-4 border-b border-gray-100"
+            onPress={() => handleRouteOptionSelect(item)}
+          >
+            <StyledView className="flex-row justify-between items-center">
+              <StyledView className="flex-1">
+                <StyledText className="text-lg font-semibold text-gray-800">
+                  {item.name}
+                </StyledText>
+                <StyledText className="text-gray-500 mt-1">
+                  Tempo estimado: {item.duration}
+                </StyledText>
+                <StyledView className="flex-row mt-2">
+                  {item.accessibility.includes("elevator") && (
+                    <StyledText className="text-blue-500 mr-4">
+                      ⚡ Elevador disponível
+                    </StyledText>
+                  )}
+                  {item.accessibility.includes("ramp") && (
+                    <StyledText className="text-blue-500">
+                      ↗ Rampa de acesso
+                    </StyledText>
+                  )}
+                </StyledView>
+              </StyledView>
+              <Ionicons name="chevron-forward" size={24} color="#6B7280" />
+            </StyledView>
+          </StyledTouchable>
+        )}
+        keyExtractor={item => item.id.toString()}
+      />
+    </StyledView>
+  );
+
   return (
-    <StyledView className="bg-white p-5 shadow-lg rounded-t-3xl">
-      {isLoadingLocation ? (
-        <StyledView className="h-32 justify-center items-center">
-          <StyledActivityIndicator size="large" color="#3B82F6" />
-          <StyledText className="mt-3 text-gray-600 text-center text-base">
-            Obtendo sua localização...
-          </StyledText>
-        </StyledView>
-      ) : (
+    <StyledView className="flex-1 bg-white">
+      {!showRouteOptions ? (
         <>
-          <StyledView className="mb-6">
-            <StyledText className="text-xl font-bold text-gray-800 mb-4">
-              Para onde vamos?
+          <StyledView className="p-4 border-b border-gray-200">
+            <StyledText className="text-lg font-semibold mb-4">
+              Como deseja informar seu ponto de partida?
             </StyledText>
-
-            <StyledView className="flex-row justify-between mb-5">
-              <StyledTouchable
-                className={`flex-1 p-4 rounded-2xl mr-2 ${useCurrentLocation ? 'bg-blue-500' : 'bg-gray-50'}`}
-                onPress={handleUseCurrentLocation}
-              >
-                <Ionicons 
-                  name="location" 
-                  size={24} 
-                  color={useCurrentLocation ? "white" : "#4B5563"} 
-                  style={{ alignSelf: 'center', marginBottom: 4 }}
-                />
-                <StyledText className={`text-center text-base ${useCurrentLocation ? 'text-white' : 'text-gray-700'}`}>
-                  Localização Atual
+            
+            <StyledTouchable 
+              className="flex-row items-center p-4 bg-gray-50 rounded-xl mb-2"
+              onPress={handleUseCurrentLocation}
+            >
+              <Ionicons name="locate" size={24} color="#3B82F6" />
+              <StyledView className="ml-3">
+                <StyledText className="font-medium">Usar localização atual</StyledText>
+                <StyledText className="text-sm text-gray-500">
+                  Detectar automaticamente
                 </StyledText>
-              </StyledTouchable>
-              <StyledTouchable
-                className={`flex-1 p-4 rounded-2xl ml-2 ${!useCurrentLocation ? 'bg-blue-500' : 'bg-gray-50'}`}
-                onPress={handleManualLocation}
-              >
-                <Ionicons 
-                  name="pencil" 
-                  size={24} 
-                  color={!useCurrentLocation ? "white" : "#4B5563"} 
-                  style={{ alignSelf: 'center', marginBottom: 4 }}
-                />
-                <StyledText className={`text-center text-base ${!useCurrentLocation ? 'text-white' : 'text-gray-700'}`}>
-                  Digite o Endereço
+              </StyledView>
+            </StyledTouchable>
+
+            <StyledTouchable 
+              className="flex-row items-center p-4 bg-gray-50 rounded-xl"
+              onPress={handleManualLocation}
+            >
+              <Ionicons name="pencil" size={24} color="#3B82F6" />
+              <StyledView className="ml-3">
+                <StyledText className="font-medium">Digite o endereço</StyledText>
+                <StyledText className="text-sm text-gray-500">
+                  Informar manualmente
                 </StyledText>
-              </StyledTouchable>
-            </StyledView>
-
-            <StyledView className="relative mb-4">
-              <StyledView className="flex-row items-center bg-gray-50 rounded-xl p-4">
-                <Ionicons name="location-outline" size={24} color="#3B82F6" style={{ marginRight: 12 }} />
-                <StyledInput
-                  className={`flex-1 text-base ${selectedOrigin ? 'text-green-700' : 'text-gray-700'}`}
-                  placeholder="Local de partida"
-                  value={origin}
-                  onChangeText={(text) => handleSearch(text, true)}
-                  placeholderTextColor="#9CA3AF"
-                  editable={!useCurrentLocation}
-                />
-                {origin.length > 0 && !useCurrentLocation && (
-                  <StyledTouchable onPress={clearOrigin}>
-                    <Ionicons name="close-circle" size={24} color="#9CA3AF" />
-                  </StyledTouchable>
-                )}
               </StyledView>
-              {isLoadingSearch && isSearchingOrigin && (
-                <StyledView className="absolute -bottom-8 w-full items-center">
-                  <StyledView className="flex-row items-center bg-gray-50 px-4 py-2 rounded-full">
-                    <StyledActivityIndicator size="small" color="#3B82F6" />
-                    <StyledText className="ml-2 text-gray-600">Buscando endereços...</StyledText>
-                  </StyledView>
-                </StyledView>
-              )}
-            </StyledView>
-
-            {originResults.length > 0 && (
-              <StyledFlatList
-                data={originResults}
-                renderItem={({ item }) => renderLocationItem({ item, isOrigin: true })}
-                keyExtractor={item => item.id.toString()}
-                className="max-h-40 bg-white rounded-xl shadow-sm mb-4"
-              />
-            )}
-
-            <StyledView className="relative">
-              <StyledView className="flex-row items-center bg-gray-50 rounded-xl p-4">
-                <Ionicons name="navigate" size={24} color="#EF4444" style={{ marginRight: 12 }} />
-                <StyledInput
-                  className={`flex-1 text-base ${selectedDestination ? 'text-green-700' : 'text-gray-700'}`}
-                  placeholder="Para onde você quer ir?"
-                  value={destination}
-                  onChangeText={(text) => handleSearch(text, false)}
-                  placeholderTextColor="#9CA3AF"
-                  editable={!!selectedOrigin}
-                />
-                {destination.length > 0 && (
-                  <StyledTouchable onPress={clearDestination}>
-                    <Ionicons name="close-circle" size={24} color="#9CA3AF" />
-                  </StyledTouchable>
-                )}
-              </StyledView>
-              {!isSearchingOrigin && destination.length > 2 && destinationResults.length === 0 && isLoadingSearch && (
-                <StyledView className="absolute -bottom-8 w-full items-center">
-                  <StyledView className="flex-row items-center bg-gray-50 px-4 py-2 rounded-full">
-                    <StyledActivityIndicator size="small" color="#3B82F6" />
-                    <StyledText className="ml-2 text-gray-600">Buscando destinos...</StyledText>
-                  </StyledView>
-                </StyledView>
-              )}
-            </StyledView>
-
-            {destinationResults.length > 0 && (
-              <StyledFlatList
-                data={destinationResults}
-                renderItem={({ item }) => renderLocationItem({ item, isOrigin: false })}
-                keyExtractor={item => item.id.toString()}
-                className="max-h-40 bg-white rounded-xl shadow-sm mt-4"
-              />
-            )}
+            </StyledTouchable>
           </StyledView>
 
-          <StyledTouchable
-            className={`w-full rounded-2xl p-4 ${
-              selectedOrigin && selectedDestination 
-                ? 'bg-blue-500' 
-                : 'bg-gray-200'
-            }`}
-            onPress={handleSearchRoute}
-            disabled={!selectedOrigin || !selectedDestination}
-          >
-            <StyledText className="text-white text-center font-bold text-lg">
-              Traçar Rota Acessível
-            </StyledText>
-          </StyledTouchable>
+          {/* Campos de busca */}
+          <StyledView className="p-4">
+            <StyledView className="mb-4">
+              <StyledInput
+                className="bg-gray-50 p-4 rounded-xl border border-gray-200"
+                placeholder="Origem"
+                value={origin}
+                onChangeText={(text) => handleSearch(text, true)}
+                editable={!useCurrentLocation}
+              />
+              {isLoadingSearch && isSearchingOrigin && (
+                <StyledActivityIndicator className="absolute right-4 top-4" />
+              )}
+            </StyledView>
+
+            <StyledView>
+              <StyledInput
+                className="bg-gray-50 p-4 rounded-xl border border-gray-200"
+                placeholder="Destino"
+                value={destination}
+                onChangeText={(text) => handleSearch(text, false)}
+              />
+              {isLoadingSearch && !isSearchingOrigin && (
+                <StyledActivityIndicator className="absolute right-4 top-4" />
+              )}
+            </StyledView>
+          </StyledView>
+
+          {/* Lista de resultados da busca */}
+          {(originResults.length > 0 || destinationResults.length > 0) && (
+            <StyledFlatList
+              data={isSearchingOrigin ? originResults : destinationResults}
+              renderItem={({ item }) => (
+                <StyledTouchable 
+                  className="flex-row items-center p-4 border-b border-gray-100"
+                  onPress={() => handleSelectLocation(item, isSearchingOrigin)}
+                >
+                  <Ionicons name="location" size={24} color="#6B7280" />
+                  <StyledView className="ml-3 flex-1">
+                    <StyledText className="font-medium">{item.name}</StyledText>
+                    <StyledText className="text-sm text-gray-500">
+                      {item.address || 'Endereço não disponível'}
+                    </StyledText>
+                  </StyledView>
+                </StyledTouchable>
+              )}
+              keyExtractor={item => item.id.toString()}
+            />
+          )}
         </>
+      ) : (
+        renderRouteOptions()
       )}
     </StyledView>
   );

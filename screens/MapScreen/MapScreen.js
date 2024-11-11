@@ -1,15 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View } from 'react-native';
-import { MapSearch } from '../../components/MapSearch';
 import { MapShow } from '../../components/MapShow';
+import { useRoute, useNavigation } from '@react-navigation/native';
 
 export function MapScreen() {
-  const [selectedRoute, setSelectedRoute] = useState(null);
+  const route = useRoute();
+  const navigation = useNavigation();
+  const selectedRoute = route.params?.route;
+
+  const handleBackToSearch = () => {
+    navigation.goBack();
+  };
 
   return (
     <View className="flex-1">
-      <MapSearch onRouteSelect={setSelectedRoute} />
-      <MapShow route={selectedRoute} />
+      <MapShow 
+        route={selectedRoute} 
+        onBackPress={handleBackToSearch}
+      />
     </View>
   );
 }

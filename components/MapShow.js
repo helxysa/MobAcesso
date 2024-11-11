@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Alert } from 'react-native';
+import { View, ActivityIndicator, Alert, TouchableOpacity, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { styled } from 'nativewind';
 import { getRoute } from '../services/Map';
@@ -8,6 +8,8 @@ import * as Location from 'expo-location';
 const StyledView = styled(View);
 const StyledWebView = styled(WebView);
 const StyledActivityIndicator = styled(ActivityIndicator);
+const StyledTouchableOpacity = styled(TouchableOpacity);
+const StyledText = styled(Text);
 
 export function MapShow({ route }) {
   const [mapHtml, setMapHtml] = useState('');
@@ -125,7 +127,6 @@ export function MapShow({ route }) {
 
               map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
 
-              // Adiciona informações da rota
               const distance = ${routeData.distance / 1000}; // Convertendo para km
               const duration = ${Math.round(routeData.duration / 60)}; // Convertendo para minutos
 
@@ -161,13 +162,41 @@ export function MapShow({ route }) {
       {isLoading ? (
         <StyledView className="flex-1 justify-center items-center">
           <StyledActivityIndicator size="large" color="#4B5563" />
+          <StyledText className="mt-3 text-gray-600">
+            Calculando melhor rota...
+          </StyledText>
         </StyledView>
       ) : (
-        <StyledWebView
-          className="flex-1"
-          source={{ html: mapHtml }}
-          originWhitelist={['*']}
-        />
+        <>
+          <StyledWebView
+            className="flex-1"
+            source={{ html: mapHtml }}
+            originWhitelist={['*']}
+          />
+          
+          {/* Bottom Sheet simplificado */}
+          <StyledView className="absolute bottom-0 w-full bg-white rounded-t-3xl shadow-lg p-6">
+            <StyledView className="flex-row items-center justify-between mb-4">
+              <StyledView>
+                <StyledText className="text-lg font-bold text-gray-800">
+                  Rota encontrada
+                </StyledText>
+                <StyledText className="text-gray-600 mt-1">
+                  {route?.destination?.name}
+                </StyledText>
+              </StyledView>
+            </StyledView>
+
+            <StyledTouchableOpacity
+              className="w-full bg-blue-500 rounded-xl p-4"
+              onPress={() => {/* tenho q colocar aq o navigation pra rota */}}
+            >
+              <StyledText className="text-white text-center font-bold text-lg">
+                Iniciar Rota
+              </StyledText>
+            </StyledTouchableOpacity>
+          </StyledView>
+        </>
       )}
     </StyledView>
   );
